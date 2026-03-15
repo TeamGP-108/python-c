@@ -1,12 +1,9 @@
-import subprocess
-import tempfile
-import os
+import requests
 import time
-import sys
 
 def execute_python_code(code: str, stdin: str = "") -> dict:
     """
-    Execute Python code in a safe environment
+    Execute Python code using Piston API (free, no API key required)
     """
     result = {
         "output": "",
@@ -14,45 +11,44 @@ def execute_python_code(code: str, stdin: str = "") -> dict:
         "execution_time": 0
     }
     
-    # Create a temporary file
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
-        f.write(code)
-        temp_file = f.name
-    
     try:
-        # Start timing
         start_time = time.time()
         
-        # Execute the code with timeout
-        process = subprocess.Popen(
-            [sys.executable, temp_file],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=5  # 5 seconds timeout
+        # Using Piston API (free public API)
+        response = requests.post(
+            "https://emkc.org/api/v2/piston/execute",
+            json={
+                "language": "python",
+                "version": "3.10.0",
+                "files": [
+                    {
+                        "name": "main.py",
+                        "content": code
+                    }
+                ],
+                "stdin": stdin,
+                "args": [],
+                "compile_timeout": 10000,
+                "run_timeout": 3000
+            },
+            timeout=10
         )
         
-        stdout, stderr = process.communicate(input=stdin, timeout=5)
-        
-        # Calculate execution time
         result["execution_time"] = time.time() - start_time
         
-        if stderr:
-            result["error"] = stderr
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("run"):
+                if data["run"].get("stderr"):
+                    result["error"] = data["run"]["stderr"]
+                else:
+                    result["output"] = data["run"]["stdout"]
         else:
-            result["output"] = stdout
+            result["error"] = f"API Error: {response.status_code}"
             
-    except subprocess.TimeoutExpired:
-        process.kill()
-        result["error"] = "Execution timeout (max 5 seconds)"
+    except requests.exceptions.RequestException as e:
+        result["error"] = f"Request failed: {str(e)}"
     except Exception as e:
         result["error"] = str(e)
-    finally:
-        # Clean up temp file
-        try:
-            os.unlink(temp_file)
-        except:
-            pass
     
     return result
