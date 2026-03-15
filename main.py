@@ -4,8 +4,7 @@ import subprocess
 import sys
 import os
 import tempfile
-import resource
-import signal
+from urllib.parse import urlparse, parse_qs
 
 class handler(BaseHTTPRequestHandler):
 
@@ -14,8 +13,33 @@ class handler(BaseHTTPRequestHandler):
         self._set_cors_headers()
         self.end_headers()
 
+    def do_GET(self):
+        parsed = urlparse(self.path)
+
+        if parsed.path == "/health":
+            self._respond(200, {"status": "ok", "python": sys.version})
+            return
+
+        if parsed.path == "/run":
+            params = parse_qs(parsed.query)
+
+            code = params.get("code", [None])[0]
+            stdin_input = params.get("stdin", [""])[0]
+
+            if not code or not code.strip():
+                self._respond(400, {"error": "Missing 'code' query parameter"})
+                return
+
+            result = self._execute_code(code, stdin_input)
+            self._respond(200, result)
+            return
+
+        self._respond(404, {"error": "Not found"})
+
     def do_POST(self):
-        if self.path == "/run":
+        parsed = urlparse(self.path)
+
+        if parsed.path == "/run":
             content_length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(content_length)
 
@@ -36,12 +60,6 @@ class handler(BaseHTTPRequestHandler):
         else:
             self._respond(404, {"error": "Not found"})
 
-    def do_GET(self):
-        if self.path == "/health":
-            self._respond(200, {"status": "ok", "python": sys.version})
-        else:
-            self._respond(404, {"error": "Not found"})
-
     def _execute_code(self, code: str, stdin_input: str = "") -> dict:
         try:
             with tempfile.NamedTemporaryFile(
@@ -59,7 +77,7 @@ class handler(BaseHTTPRequestHandler):
                     input=stdin_input,
                     capture_output=True,
                     text=True,
-                    timeout=10,           # 10-second hard timeout
+                    timeout=10,
                     env={
                         "PATH": os.environ.get("PATH", ""),
                         "PYTHONPATH": "",
@@ -68,7 +86,7 @@ class handler(BaseHTTPRequestHandler):
                 )
 
                 return {
-                    "stdout": proc.stdout[:50_000],   # cap at 50 KB
+                    "stdout": proc.stdout[:50_000],
                     "stderr": proc.stderr[:10_000],
                     "exit_code": proc.returncode,
                     "timed_out": False,
@@ -110,4 +128,4 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def log_message(self, format, *args):
-        pass  # suppress default access logs
+        pass
