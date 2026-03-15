@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Python Terminal</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0d0d0d;
+    color: #f0f0f0;
+    font-family: 'Fira Code', 'Courier New', monospace;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .dot.red    { background: #ff5f57; }
+  .dot.yellow { background: #ffbd2e; }
+  .dot.green  { background: #28c840; }
+
+  .title {
+    margin-left: 8px;
+    font-size: 13px;
+    color: #666;
+    letter-spacing: 0.05em;
+  }
+
+  #editor {
+    width: 100%;
+    flex: 0 0 200px;
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-radius: 6px;
+    color: #e0e0e0;
+    font-family: 'Fira Code', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 12px 14px;
+    resize: vertical;
+    outline: none;
+  }
+
+  #editor:focus { border-color: #3a8f5a; }
+
+  .actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  #run-btn {
+    background: #28c840;
+    color: #000;
+    border: none;
+    border-radius: 5px;
+    padding: 8px 22px;
+    font-size: 14px;
+    font-family: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: background 0.15s;
+  }
+  #run-btn:hover   { background: #32e84e; }
+  #run-btn:disabled { background: #444; color: #888; cursor: not-allowed; }
+
+  #clear-btn {
+    background: transparent;
+    color: #666;
+    border: 1px solid #333;
+    border-radius: 5px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  #clear-btn:hover { color: #ccc; border-color: #666; }
+
+  #status {
+    margin-left: auto;
+    font-size: 12px;
+    color: #555;
+  }
+  #status.running { color: #28c840; }
+  #status.error   { color: #ff5f57; }
+  #status.done    { color: #666; }
+
+  #terminal {
+    flex: 1;
+    background: #111;
+    border: 1px solid #222;
+    border-radius: 6px;
+    padding: 14px 16px;
+    overflow-y: auto;
+    font-size: 14px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  .line-stdout { color: #e0e0e0; }
+  .line-stderr { color: #ff6b6b; }
+  .line-info   { color: #555; font-style: italic; }
+
+  /* blinking cursor */
+  .cursor {
+    display: inline-block;
+    width: 8px;
+    height: 14px;
+    background: #28c840;
+    vertical-align: middle;
+    animation: blink 1s step-end infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="dot red"></div>
+  <div class="dot yellow"></div>
+  <div class="dot green"></div>
+  <span class="title">python3 — runner</span>
+</div>
+
+<textarea id="editor" spellcheck="false" placeholder="# write your Python code here...
+for i in range(10):
+    import time
+    time.sleep(0.3)
+    print(f'Line {i}')"></textarea>
+
+<div class="actions">
+  <button id="run-btn">▶ Run</button>
+  <button id="clear-btn">Clear</button>
+  <span id="status">ready</span>
+</div>
+
+<div id="terminal"><span class="line-info">// output will appear here line by line...\n</span></div>
+
+<script>
+  const API = "https://python-c.vercel.app/run";  // ← your API URL
+
+  const editor    = document.getElementById("editor");
+  const terminal  = document.getElementById("terminal");
+  const runBtn    = document.getElementById("run-btn");
+  const clearBtn  = document.getElementById("clear-btn");
+  const status    = document.getElementById("status");
+
+  let cursor = null;
+
+  function addCursor() {
+    cursor = document.createElement("span");
+    cursor.className = "cursor";
+    terminal.appendChild(cursor);
+  }
+
+  function removeCursor() {
+    if (cursor) { cursor.remove(); cursor = null; }
+  }
+
+  function appendLine(text, type = "stdout") {
+    removeCursor();
+    const span = document.createElement("span");
+    span.className = `line-${type}`;
+    span.textContent = text;
+    terminal.appendChild(span);
+    addCursor();
+    terminal.scrollTop = terminal.scrollHeight;
+  }
+
+  function setStatus(text, cls) {
+    status.textContent = text;
+    status.className = cls;
+  }
+
+  clearBtn.addEventListener("click", () => {
+    terminal.innerHTML = "";
+    setStatus("ready", "");
+  });
+
+  runBtn.addEventListener("click", async () => {
+    const code = editor.value.trim();
+    if (!code) return;
+
+    // reset terminal
+    terminal.innerHTML = "";
+    addCursor();
+    runBtn.disabled = true;
+    setStatus("● running", "running");
+
+    try {
+      const url = `${API}?code=${encodeURIComponent(code)}&format=stream`;
+      const response = await fetch(url);
+
+      const reader  = response.body.getReader();
+      const decoder = new TextDecoder();
+      let   buffer  = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // SSE messages are separated by double newline
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop(); // keep incomplete chunk
+
+        for (const part of parts) {
+          if (!part.trim()) continue;
+
+          // parse SSE fields
+          let event = "stdout";
+          let data  = "";
+
+          for (const line of part.split("\n")) {
+            if (line.startsWith("event: ")) event = line.slice(7).trim();
+            if (line.startsWith("data: "))  data  = line.slice(6);
+          }
+
+          if (event === "done") {
+            const payload = JSON.parse(data);
+            const code    = payload.exit_code;
+            removeCursor();
+            appendLine(
+              `\n[Process exited with code ${code}]`,
+              code === 0 ? "info" : "stderr"
+            );
+            removeCursor();
+            setStatus(code === 0 ? "✓ done" : `✗ exit ${code}`, code === 0 ? "done" : "error");
+          } else {
+            appendLine(data, event); // "stdout" or "stderr"
+          }
+        }
+      }
+
+    } catch (err) {
+      removeCursor();
+      appendLine(`\nFetch error: ${err.message}\n`, "stderr");
+      setStatus("✗ error", "error");
+    } finally {
+      runBtn.disabled = false;
+    }
+  });
+
+  // Ctrl+Enter to run
+  editor.addEventListener("keydown", e => {
+    if (e.ctrlKey && e.key === "Enter") runBtn.click();
+  });
+</script>
+</body>
+</html>
