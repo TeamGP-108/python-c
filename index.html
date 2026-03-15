@@ -4,185 +4,288 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Python Terminal</title>
+
+<!-- CodeMirror for VS Code-like editor -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/comment/comment.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
+
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   body {
-    background: #0d0d0d;
-    color: #f0f0f0;
-    font-family: 'Fira Code', 'Courier New', monospace;
+    background: #1e1e1e;
+    color: #d4d4d4;
+    font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
     height: 100vh;
     display: flex;
     flex-direction: column;
-    padding: 16px;
+    overflow: hidden;
+  }
+
+  /* ── Top bar ── */
+  .topbar {
+    background: #323233;
+    border-bottom: 1px solid #111;
+    padding: 0 14px;
+    height: 38px;
+    display: flex;
+    align-items: center;
     gap: 12px;
+    flex-shrink: 0;
   }
 
-  .toolbar {
+  .dots { display: flex; gap: 6px; }
+  .dot  { width: 11px; height: 11px; border-radius: 50%; }
+  .dot.r { background: #ff5f57; }
+  .dot.y { background: #ffbd2e; }
+  .dot.g { background: #28c840; }
+
+  .file-tab {
+    background: #1e1e1e;
+    border-top: 2px solid #0078d4;
+    padding: 0 16px;
+    height: 38px;
     display: flex;
     align-items: center;
-    gap: 10px;
-  }
-
-  .dot { width: 12px; height: 12px; border-radius: 50%; }
-  .dot.red    { background: #ff5f57; }
-  .dot.yellow { background: #ffbd2e; }
-  .dot.green  { background: #28c840; }
-
-  .title {
-    margin-left: 8px;
     font-size: 13px;
-    color: #666;
-    letter-spacing: 0.05em;
+    color: #ccc;
+    gap: 6px;
   }
+  .file-tab span { color: #888; font-size: 11px; }
 
-  #editor {
-    width: 100%;
-    flex: 0 0 200px;
-    background: #1a1a1a;
-    border: 1px solid #2a2a2a;
-    border-radius: 6px;
-    color: #e0e0e0;
-    font-family: 'Fira Code', 'Courier New', monospace;
-    font-size: 14px;
-    line-height: 1.6;
-    padding: 12px 14px;
-    resize: vertical;
-    outline: none;
-  }
-
-  #editor:focus { border-color: #3a8f5a; }
-
-  .actions {
+  /* ── Main split layout ── */
+  .main {
     display: flex;
-    gap: 10px;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── Editor panel ── */
+  .editor-panel {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+    border-bottom: 1px solid #111;
+  }
+
+  .CodeMirror {
+    height: 100% !important;
+    font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace !important;
+    font-size: 14px !important;
+    line-height: 1.6 !important;
+    background: #1e1e1e !important;
+  }
+
+  .CodeMirror-scroll { padding-bottom: 20px; }
+
+  /* ── Action bar ── */
+  .actionbar {
+    background: #2d2d2d;
+    border-bottom: 1px solid #111;
+    padding: 6px 14px;
+    display: flex;
     align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
   }
 
   #run-btn {
-    background: #28c840;
-    color: #000;
+    background: #0078d4;
+    color: #fff;
     border: none;
-    border-radius: 5px;
-    padding: 8px 22px;
-    font-size: 14px;
+    border-radius: 4px;
+    padding: 5px 16px;
+    font-size: 13px;
     font-family: inherit;
-    font-weight: 700;
+    font-weight: 600;
     cursor: pointer;
-    letter-spacing: 0.04em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
     transition: background 0.15s;
   }
-  #run-btn:hover   { background: #32e84e; }
-  #run-btn:disabled { background: #444; color: #888; cursor: not-allowed; }
+  #run-btn:hover    { background: #1084d8; }
+  #run-btn:disabled { background: #444; color: #777; cursor: not-allowed; }
 
   #clear-btn {
     background: transparent;
-    color: #666;
-    border: 1px solid #333;
-    border-radius: 5px;
-    padding: 8px 16px;
+    color: #888;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 5px 14px;
     font-size: 13px;
     font-family: inherit;
     cursor: pointer;
-    transition: color 0.15s, border-color 0.15s;
+    transition: color 0.15s;
   }
   #clear-btn:hover { color: #ccc; border-color: #666; }
 
   #status {
     margin-left: auto;
     font-size: 12px;
-    color: #555;
+    color: #666;
+    min-width: 100px;
+    text-align: right;
   }
-  #status.running { color: #28c840; }
-  #status.error   { color: #ff5f57; }
-  #status.done    { color: #666; }
+  #status.running { color: #4ec9b0; }
+  #status.error   { color: #f44747; }
+  #status.done    { color: #6a9955; }
 
-  #terminal {
-    flex: 1;
-    background: #111;
-    border: 1px solid #222;
-    border-radius: 6px;
-    padding: 14px 16px;
+  /* ── Terminal panel ── */
+  .terminal-panel {
+    flex: 0 0 240px;
+    background: #0d0d0d;
     overflow-y: auto;
-    font-size: 14px;
-    line-height: 1.7;
-    white-space: pre-wrap;
+    padding: 10px 14px;
+    font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+    font-size: 13.5px;
+    line-height: 1.75;
+  }
+
+  .terminal-panel::-webkit-scrollbar       { width: 6px; }
+  .terminal-panel::-webkit-scrollbar-track { background: #0d0d0d; }
+  .terminal-panel::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+  /* each line is a block element so they stack vertically */
+  .out-line {
+    display: block;
+    white-space: pre;          /* preserve spaces but DON'T wrap into same line */
     word-break: break-all;
   }
 
-  .line-stdout { color: #e0e0e0; }
-  .line-stderr { color: #ff6b6b; }
-  .line-info   { color: #555; font-style: italic; }
+  .out-line.stdout { color: #d4d4d4; }
+  .out-line.stderr { color: #f44747; }
+  .out-line.info   { color: #555; font-style: italic; }
 
   /* blinking cursor */
-  .cursor {
+  #cursor {
     display: inline-block;
-    width: 8px;
-    height: 14px;
-    background: #28c840;
+    width: 7px;
+    height: 13px;
+    background: #4ec9b0;
     vertical-align: middle;
     animation: blink 1s step-end infinite;
   }
   @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  /* terminal header */
+  .term-header {
+    background: #1a1a1a;
+    border-bottom: 1px solid #222;
+    padding: 4px 14px;
+    font-size: 11px;
+    color: #555;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .term-header span { color: #333; }
 </style>
 </head>
 <body>
 
-<div class="toolbar">
-  <div class="dot red"></div>
-  <div class="dot yellow"></div>
-  <div class="dot green"></div>
-  <span class="title">python3 — runner</span>
+<!-- Top bar -->
+<div class="topbar">
+  <div class="dots">
+    <div class="dot r"></div>
+    <div class="dot y"></div>
+    <div class="dot g"></div>
+  </div>
+  <div class="file-tab">main.py <span>●</span></div>
 </div>
 
-<textarea id="editor" spellcheck="false" placeholder="# write your Python code here...
-for i in range(10):
-    import time
-    time.sleep(0.3)
-    print(f'Line {i}')"></textarea>
+<!-- Editor -->
+<div class="main">
+  <div class="editor-panel">
+    <textarea id="code-input">for i in range(5):
+    print(f"Hello {i}")</textarea>
+  </div>
 
-<div class="actions">
-  <button id="run-btn">▶ Run</button>
-  <button id="clear-btn">Clear</button>
-  <span id="status">ready</span>
+  <!-- Run bar -->
+  <div class="actionbar">
+    <button id="run-btn">▶ Run</button>
+    <button id="clear-btn">⊘ Clear</button>
+    <kbd style="font-size:11px;color:#555;border:1px solid #444;padding:2px 6px;border-radius:3px;">Ctrl+Enter</kbd>
+    <span id="status">ready</span>
+  </div>
+
+  <!-- Terminal header -->
+  <div class="term-header">TERMINAL <span>─────────────────────</span> python3</div>
+
+  <!-- Output terminal -->
+  <div class="terminal-panel" id="terminal">
+    <span class="out-line info">// output appears here line by line...</span>
+  </div>
 </div>
-
-<div id="terminal"><span class="line-info">// output will appear here line by line...\n</span></div>
 
 <script>
-  const API = "https://python-c.vercel.app/run";  // ← your API URL
+  const API = "https://python-c.vercel.app/run";
 
-  const editor    = document.getElementById("editor");
-  const terminal  = document.getElementById("terminal");
-  const runBtn    = document.getElementById("run-btn");
-  const clearBtn  = document.getElementById("clear-btn");
-  const status    = document.getElementById("status");
+  // ── Init CodeMirror ──────────────────────────────────────────
+  const cm = CodeMirror.fromTextArea(document.getElementById("code-input"), {
+    mode:              "python",
+    theme:             "dracula",
+    lineNumbers:       true,
+    autoCloseBrackets: true,
+    matchBrackets:     true,
+    styleActiveLine:   true,
+    indentUnit:        4,
+    tabSize:           4,
+    indentWithTabs:    false,
+    extraKeys: {
+      "Tab": (cm) => cm.execCommand("indentMore"),
+      "Shift-Tab": (cm) => cm.execCommand("indentLess"),
+      "Ctrl-/": (cm) => cm.toggleComment(),
+      "Ctrl-Enter": () => runCode(),
+    }
+  });
 
-  let cursor = null;
+  // ── Terminal helpers ─────────────────────────────────────────
+  const terminal = document.getElementById("terminal");
+  const runBtn   = document.getElementById("run-btn");
+  const clearBtn = document.getElementById("clear-btn");
+  const statusEl = document.getElementById("status");
+
+  let cursorEl = null;
 
   function addCursor() {
-    cursor = document.createElement("span");
-    cursor.className = "cursor";
-    terminal.appendChild(cursor);
+    cursorEl = document.createElement("span");
+    cursorEl.id = "cursor";
+    terminal.appendChild(cursorEl);
+    scrollBottom();
   }
 
   function removeCursor() {
-    if (cursor) { cursor.remove(); cursor = null; }
+    if (cursorEl) { cursorEl.remove(); cursorEl = null; }
   }
 
-  function appendLine(text, type = "stdout") {
-    removeCursor();
-    const span = document.createElement("span");
-    span.className = `line-${type}`;
-    span.textContent = text;
-    terminal.appendChild(span);
-    addCursor();
+  function scrollBottom() {
     terminal.scrollTop = terminal.scrollHeight;
   }
 
+  // Append one line to terminal — each call = one new visual row
+  function appendLine(text, type) {
+    removeCursor();
+    const el = document.createElement("span");
+    el.className = `out-line ${type}`;
+    el.textContent = text;   // textContent safely renders \n etc.
+    terminal.appendChild(el);
+    addCursor();
+    scrollBottom();
+  }
+
   function setStatus(text, cls) {
-    status.textContent = text;
-    status.className = cls;
+    statusEl.textContent = text;
+    statusEl.className   = cls;
   }
 
   clearBtn.addEventListener("click", () => {
@@ -190,11 +293,11 @@ for i in range(10):
     setStatus("ready", "");
   });
 
-  runBtn.addEventListener("click", async () => {
-    const code = editor.value.trim();
+  // ── Run ──────────────────────────────────────────────────────
+  async function runCode() {
+    const code = cm.getValue().trim();
     if (!code) return;
 
-    // reset terminal
     terminal.innerHTML = "";
     addCursor();
     runBtn.disabled = true;
@@ -203,6 +306,11 @@ for i in range(10):
     try {
       const url = `${API}?code=${encodeURIComponent(code)}&format=stream`;
       const response = await fetch(url);
+
+      if (!response.ok) {
+        appendLine(`HTTP error: ${response.status}`, "stderr");
+        return;
+      }
 
       const reader  = response.body.getReader();
       const decoder = new TextDecoder();
@@ -214,51 +322,51 @@ for i in range(10):
 
         buffer += decoder.decode(value, { stream: true });
 
-        // SSE messages are separated by double newline
-        const parts = buffer.split("\n\n");
-        buffer = parts.pop(); // keep incomplete chunk
+        // SSE blocks are separated by \n\n
+        const blocks = buffer.split("\n\n");
+        buffer = blocks.pop();  // last incomplete block stays in buffer
 
-        for (const part of parts) {
-          if (!part.trim()) continue;
+        for (const block of blocks) {
+          if (!block.trim()) continue;
 
-          // parse SSE fields
           let event = "stdout";
           let data  = "";
 
-          for (const line of part.split("\n")) {
+          for (const line of block.split("\n")) {
             if (line.startsWith("event: ")) event = line.slice(7).trim();
             if (line.startsWith("data: "))  data  = line.slice(6);
           }
 
           if (event === "done") {
-            const payload = JSON.parse(data);
-            const code    = payload.exit_code;
+            const payload  = JSON.parse(data);
+            const exitCode = payload.exit_code;
             removeCursor();
-            appendLine(
-              `\n[Process exited with code ${code}]`,
-              code === 0 ? "info" : "stderr"
-            );
+            appendLine(`[Process exited with code ${exitCode}]`, exitCode === 0 ? "info" : "stderr");
             removeCursor();
-            setStatus(code === 0 ? "✓ done" : `✗ exit ${code}`, code === 0 ? "done" : "error");
+            setStatus(exitCode === 0 ? "✓ done" : `✗ exit ${exitCode}`, exitCode === 0 ? "done" : "error");
+
           } else {
-            appendLine(data, event); // "stdout" or "stderr"
+            // data may contain multiple lines if buffered — split and emit each
+            const lines = data.split("\n");
+            for (let i = 0; i < lines.length; i++) {
+              // last element is "" if data ended with \n — skip empty tail
+              if (i === lines.length - 1 && lines[i] === "") continue;
+              appendLine(lines[i], event);
+            }
           }
         }
       }
 
     } catch (err) {
       removeCursor();
-      appendLine(`\nFetch error: ${err.message}\n`, "stderr");
+      appendLine(`Fetch error: ${err.message}`, "stderr");
       setStatus("✗ error", "error");
     } finally {
       runBtn.disabled = false;
     }
-  });
+  }
 
-  // Ctrl+Enter to run
-  editor.addEventListener("keydown", e => {
-    if (e.ctrlKey && e.key === "Enter") runBtn.click();
-  });
+  document.getElementById("run-btn").addEventListener("click", runCode);
 </script>
 </body>
 </html>
