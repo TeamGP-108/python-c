@@ -3,7 +3,11 @@
   "builds": [
     {
       "src": "api/main.py",
-      "use": "@vercel/python"
+      "use": "@vercel/python",
+      "config": {
+        "maxDuration": 10,
+        "memory": 1024
+      }
     }
   ],
   "routes": [
@@ -12,12 +16,6 @@
       "dest": "api/main.py"
     }
   ],
-  "functions": {
-    "api/main.py": {
-      "maxDuration": 10,
-      "memory": 1024
-    }
-  },
   "headers": [
     {
       "source": "/api/(.*)",
