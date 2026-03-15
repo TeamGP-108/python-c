@@ -2,13 +2,21 @@
   "functions": {
     "api/**/*.py": {
       "runtime": "vercel-python@3.12.0",
-      "maxDuration": 10
+      "maxDuration": 10,
+      "memory": 1024
     }
   },
-  "rewrites": [
+  "version": 2,
+  "builds": [
     {
-      "source": "/(.*)",
-      "destination": "/api/index.py"
+      "src": "api/**/*.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/api/index.py"
     }
   ]
 }
