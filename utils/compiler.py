@@ -1,54 +1,71 @@
+# utils/piston_compiler.py
 import requests
-import time
+import logging
+from typing import Dict, Any
 
-def execute_python_code(code: str, stdin: str = "") -> dict:
-    """
-    Execute Python code using Piston API (free, no API key required)
-    """
-    result = {
-        "output": "",
-        "error": None,
-        "execution_time": 0
-    }
+logger = logging.getLogger(__name__)
+
+class PistonCompiler:
+    """Compile code using Piston API"""
     
-    try:
-        start_time = time.time()
+    API_URL = "https://emkc.org/api/v2/piston/execute"
+    
+    @classmethod
+    def execute(cls, code: str, stdin: str = "", timeout: int = 5) -> Dict[str, Any]:
+        """Execute code using Piston API"""
         
-        # Using Piston API (free public API)
-        response = requests.post(
-            "https://emkc.org/api/v2/piston/execute",
-            json={
-                "language": "python",
-                "version": "3.10.0",
-                "files": [
-                    {
-                        "name": "main.py",
-                        "content": code
-                    }
-                ],
-                "stdin": stdin,
-                "args": [],
-                "compile_timeout": 10000,
-                "run_timeout": 3000
-            },
-            timeout=10
-        )
-        
-        result["execution_time"] = time.time() - start_time
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data.get("run"):
-                if data["run"].get("stderr"):
-                    result["error"] = data["run"]["stderr"]
-                else:
-                    result["output"] = data["run"]["stdout"]
-        else:
-            result["error"] = f"API Error: {response.status_code}"
+        try:
+            response = requests.post(
+                cls.API_URL,
+                json={
+                    "language": "python",
+                    "version": "3.10.0",
+                    "files": [
+                        {
+                            "name": "script.py",
+                            "content": code
+                        }
+                    ],
+                    "stdin": stdin,
+                    "args": [],
+                    "compile_timeout": timeout * 1000,
+                    "run_timeout": timeout * 1000
+                },
+                timeout=timeout + 2  # Add buffer for network
+            )
             
-    except requests.exceptions.RequestException as e:
-        result["error"] = f"Request failed: {str(e)}"
-    except Exception as e:
-        result["error"] = str(e)
-    
-    return result
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("run"):
+                    return {
+                        "output": data["run"].get("stdout", ""),
+                        "error": data["run"].get("stderr", None)
+                    }
+                else:
+                    return {
+                        "output": "",
+                        "error": "No output from compiler"
+                    }
+            else:
+                return {
+                    "output": "",
+                    "error": f"Compiler API error: {response.status_code}"
+                }
+                
+        except requests.exceptions.Timeout:
+            return {
+                "output": "",
+                "error": f"Request timeout after {timeout} seconds"
+            }
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request error: {e}")
+            return {
+                "output": "",
+                "error": f"Network error: {str(e)}"
+            }
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            return {
+                "output": "",
+                "error": f"Unexpected error: {str(e)}"
+            }
